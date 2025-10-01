@@ -26,12 +26,16 @@ def create_article():
     title = request.form.get('title')
     text = request.form.get('article_content')
     author = request.form.get('author-name')
+    description = request.form.get('description')
+    category = request.form.get('category')
 
     if not all([title, text, author]):
         abort(400, description="Missing required fields: title, article_content, or author-name.")
 
     clean_title = bleach.clean(title)
     clean_author = bleach.clean(author)
+    clean_description = bleach.clean(description) if description else None
+    clean_category = bleach.clean(category).strip().lower() if category else None
     
     html_content = markdown2.markdown(text)
     clean_content = bleach.clean(html_content, tags=list(bleach.sanitizer.ALLOWED_TAGS) + ['h1', 'h2', 'p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'a'])
@@ -41,7 +45,7 @@ def create_article():
     if image and not allowed_file(image.filename):
         abort(400, description="Invalid image file type.")
 
-    insert_article(clean_title, clean_content, clean_author, app.config['UPLOAD_FOLDER'], image)
+    insert_article(clean_title, clean_content, clean_author, app.config['UPLOAD_FOLDER'], image, clean_description, clean_category)
 
     return "created successfully", 201
 

@@ -1,6 +1,7 @@
 import os
 import re
 import sqlite3
+from datetime import datetime, timezone
 from unicodedata import normalize
 from werkzeug.utils import secure_filename
 from config import DATABASE_NAME
@@ -22,9 +23,20 @@ def init_db():
                 title TEXT NOT NULL,
                 content TEXT NOT NULL,
                 author TEXT NOT NULL,
-                image_filename TEXT
+                image_filename TEXT,
+                description TEXT,
+                category TEXT,
+                published TEXT
             )
         ''')
+        # databases created before these columns existed
+        for column in ('description', 'category', 'published'):
+            try:
+                cursor.execute(f"ALTER TABLE articles ADD COLUMN {column} TEXT")
+            except sqlite3.OperationalError:
+                pass
+        cursor.execute("UPDATE articles SET published = ? WHERE published IS NULL",
+                       (datetime.now(timezone.utc).isoformat(),))
         conn.commit()
         print("Database initialized")
     except sqlite3.Error as e:
@@ -34,7 +46,7 @@ def init_db():
             conn.close()
 
 
-def insert_article(title, content, author, upload_folder, image=None):
+def insert_article(title, content, author, upload_folder, image=None, description=None, category=None):
     conn = None
     try:
         conn = get_db_connection()
@@ -58,9 +70,10 @@ def insert_article(title, content, author, upload_folder, image=None):
             image.save(filepath)
 
         cursor.execute('''
-            INSERT INTO articles (slug, title, content, author, image_filename)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (unique_slug, title, content, author, image_filename))
+            INSERT INTO articles (slug, title, content, author, image_filename, description, category, published)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (unique_slug, title, content, author, image_filename, description, category,
+              datetime.now(timezone.utc).isoformat()))
         conn.commit()
         print(f"Article '{title}' inserted with slug: {unique_slug}")
         return unique_slug
@@ -109,7 +122,7 @@ def get_all_articles():
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT slug, title, content, author, image_filename FROM articles")
+        cursor.execute("SELECT slug, title, content, author, image_filename, description, category, published FROM articles")
         articles = cursor.fetchall()
         return [dict(article) for article in articles]
     finally:
